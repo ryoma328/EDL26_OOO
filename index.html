@@ -309,6 +309,8 @@
         async function loadDashboard() {
             const email = document.getElementById('emailInput').value;
             
+            console.log('loadDashboard 함수 시작, 이메일:', email);
+            
             if (!email) {
                 alert('이메일을 입력해주세요.');
                 return;
@@ -320,36 +322,50 @@
             button.textContent = '로딩 중...';
             button.disabled = true;
 
+            console.log('데이터 요청 시작...');
+            console.log('사용할 URL:', GAS_WEB_APP_URL);
+
             try {
                 const userData = await fetchUserData(email);
+                console.log('받은 데이터:', userData);
 
                 if (userData.error) {
+                    console.error('서버에서 오류 반환:', userData.error);
                     showError(userData.error);
                     return;
                 }
                 
                 // UI 업데이트
+                console.log('UI 업데이트 시작...');
                 updateDashboardUI(userData, email);
                 
             } catch (error) {
                 console.error('데이터 로딩 오류:', error);
-                showError('데이터를 불러오는 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.');
+                showError(`데이터를 불러오는 중 오류가 발생했습니다: ${error.message}`);
             } finally {
                 // 로딩 완료
                 button.textContent = originalText;
                 button.disabled = false;
+                console.log('로딩 완료');
             }
         }
 
         async function fetchUserData(email) {
-            const response = await fetch(`${GAS_WEB_APP_URL}?email=${encodeURIComponent(email)}`);
+            const url = `${GAS_WEB_APP_URL}?email=${encodeURIComponent(email)}`;
+            console.log('요청 URL:', url);
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                mode: 'cors'
+            });
+            
+            console.log('응답 상태:', response.status, response.statusText);
             
             if (!response.ok) {
-                throw new Error(`서버 응답 오류: ${response.status}`);
+                throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
             }
             
             const data = await response.json();
-            console.log('받은 데이터:', data);
             return data;
         }
 
@@ -585,6 +601,13 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('오.운.완 대시보드가 로드되었습니다.');
             console.log('Apps Script URL:', https://ryoma328.github.io/EDL26_OOO/);
+            
+            // URL 유효성 검사
+            if (GAS_WEB_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE' || 
+                !GAS_WEB_APP_URL.includes('script.google.com')) {
+                console.error('⚠️ 웹앱 URL이 설정되지 않았습니다!');
+                showError('웹앱 URL이 설정되지 않았습니다. 개발자에게 문의하세요.');
+            }
         });
     </script>
 </body>
