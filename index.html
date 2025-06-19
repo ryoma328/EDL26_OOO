@@ -236,7 +236,7 @@
             <br>
             <input type="email" id="emailInput" placeholder="등록한 이메일을 입력하세요">
             <br><br>
-            <button onclick="loadDashboard()">대시보드 보기</button>
+            <button id="loginButton">대시보드 보기</button>
             <br><br>
             <p style="color: #666; font-size: 0.9em;">
                 * 실제 구글 시트 데이터와 연동되었습니다!<br>
@@ -317,7 +317,7 @@
             }
 
             // 로딩 표시
-            const button = document.querySelector('button');
+            const button = document.getElementById('loginButton');
             const originalText = button.textContent;
             button.textContent = '로딩 중...';
             button.disabled = true;
@@ -565,13 +565,6 @@
             });
         }
 
-        // 엔터키로 로그인 가능
-        document.getElementById('emailInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                loadDashboard();
-            }
-        });
-
         // 뒤로가기 기능
         function goBack() {
             document.getElementById('dashboardSection').classList.add('hidden');
@@ -600,13 +593,29 @@
         // 페이지 로드 시 초기화
         document.addEventListener('DOMContentLoaded', function() {
             console.log('오.운.완 대시보드가 로드되었습니다.');
-            console.log('Apps Script URL:', https://ryoma328.github.io/EDL26_OOO/);
+            console.log('Apps Script URL:', GAS_WEB_APP_URL);
             
             // URL 유효성 검사
             if (GAS_WEB_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE' || 
                 !GAS_WEB_APP_URL.includes('script.google.com')) {
                 console.error('⚠️ 웹앱 URL이 설정되지 않았습니다!');
                 showError('웹앱 URL이 설정되지 않았습니다. 개발자에게 문의하세요.');
+            }
+
+            // 버튼 이벤트 리스너 추가
+            const loginButton = document.getElementById('loginButton');
+            if (loginButton) {
+                loginButton.addEventListener('click', loadDashboard);
+            }
+
+            // 엔터키 이벤트 리스너 추가
+            const emailInput = document.getElementById('emailInput');
+            if (emailInput) {
+                emailInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        loadDashboard();
+                    }
+                });
             }
         });
     </script>
