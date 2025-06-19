@@ -127,6 +127,8 @@
             padding: 25px;
             border-radius: 15px;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            height: 400px;
+            position: relative;
         }
 
         .chart-title {
@@ -135,6 +137,12 @@
             margin-bottom: 20px;
             text-align: center;
             font-weight: 600;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+            width: 100%;
         }
 
         .recent-activities {
@@ -253,11 +261,15 @@
             <div class="charts-section">
                 <div class="chart-container">
                     <div class="chart-title">운동 종류별 통계</div>
-                    <canvas id="exerciseChart" width="400" height="200"></canvas>
+                    <div class="chart-wrapper">
+                        <canvas id="exerciseChart"></canvas>
+                    </div>
                 </div>
                 <div class="chart-container">
                     <div class="chart-title">월별 운동 현황</div>
-                    <canvas id="monthlyChart" width="400" height="200"></canvas>
+                    <div class="chart-wrapper">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -418,7 +430,13 @@
 
         function createExerciseChart(exerciseData) {
             const ctx = document.getElementById('exerciseChart').getContext('2d');
-            new Chart(ctx, {
+            
+            // 기존 차트가 있다면 삭제
+            if (window.exerciseChartInstance) {
+                window.exerciseChartInstance.destroy();
+            }
+            
+            window.exerciseChartInstance = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels: Object.keys(exerciseData),
@@ -429,16 +447,22 @@
                             '#764ba2',
                             '#f093fb',
                             '#f5576c',
-                            '#4facfe'
+                            '#4facfe',
+                            '#43e97b',
+                            '#fa709a'
                         ]
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
                     plugins: {
                         legend: {
-                            position: 'bottom'
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
                         }
                     }
                 }
@@ -447,7 +471,13 @@
 
         function createMonthlyChart(monthlyData) {
             const ctx = document.getElementById('monthlyChart').getContext('2d');
-            new Chart(ctx, {
+            
+            // 기존 차트가 있다면 삭제
+            if (window.monthlyChartInstance) {
+                window.monthlyChartInstance.destroy();
+            }
+            
+            window.monthlyChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: ['3월', '4월', '5월', '6월'],
@@ -457,12 +487,16 @@
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         tension: 0.4,
-                        fill: true
+                        fill: true,
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
                     plugins: {
                         legend: {
                             display: false
@@ -470,7 +504,15 @@
                     },
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
                         }
                     }
                 }
