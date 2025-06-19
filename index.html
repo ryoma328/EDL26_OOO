@@ -250,8 +250,13 @@
                     <h2 id="userName">사용자님</h2>
                     <p id="userEmail"></p>
                 </div>
-                <div class="streak-badge" id="streakBadge">
-                    🔥 1일 연속 운동 중!
+                <div>
+                    <button onclick="showAllMembers()" style="background: linear-gradient(45deg, #28a745, #20c997); color: white; border: none; padding: 10px 20px; border-radius: 10px; margin-right: 10px; cursor: pointer;">
+                        👥 전체 현황
+                    </button>
+                    <div class="streak-badge" id="streakBadge">
+                        🔥 1일 연속 운동 중!
+                    </div>
                 </div>
             </div>
 
@@ -293,6 +298,42 @@
                 <div class="chart-title">최근 운동 기록</div>
                 <div id="recentActivitiesList">
                     <!-- 동적으로 생성됩니다 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 전체 회원 현황 섹션 -->
+        <div id="allMembersSection" class="hidden">
+            <div class="user-info">
+                <div>
+                    <h2>👥 전체 회원 운동 현황</h2>
+                    <p id="membersSummary">총 회원: 0명, 총 운동 횟수: 0회</p>
+                </div>
+                <div>
+                    <button onclick="goBackToPersonal()" style="background: linear-gradient(45deg, #6c757d, #495057); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer;">
+                        ← 개인 현황
+                    </button>
+                </div>
+            </div>
+
+            <div class="recent-activities">
+                <div class="chart-title">전체 회원 운동 현황</div>
+                <div style="overflow-x: auto;">
+                    <table id="membersTable" style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                        <thead>
+                            <tr style="background: linear-gradient(45deg, #667eea, #764ba2); color: white;">
+                                <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">순위</th>
+                                <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">이름</th>
+                                <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">주요 운동</th>
+                                <th style="padding: 15px; text-align: center; border: 1px solid #ddd;">총 운동 횟수</th>
+                                <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">운동 종류별 횟수</th>
+                                <th style="padding: 15px; text-align: center; border: 1px solid #ddd;">최근 운동일</th>
+                            </tr>
+                        </thead>
+                        <tbody id="membersTableBody">
+                            <!-- 동적으로 생성됩니다 -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -565,29 +606,118 @@
             });
         }
 
-        // 뒤로가기 기능
-        function goBack() {
-            document.getElementById('dashboardSection').classList.add('hidden');
-            document.getElementById('loginSection').classList.remove('hidden');
+        // 전체 회원 현황 보기
+        async function showAllMembers() {
+            console.log('전체 회원 현황 요청 시작');
             
-            // 차트 정리
-            if (exerciseChartInstance) {
-                exerciseChartInstance.destroy();
-                exerciseChartInstance = null;
+            try {
+                const membersData = await fetchAllMembersData();
+                console.log('전체 회원 데이터:', membersData);
+                
+                if (membersData.error) {
+                    alert('전체 회원 데이터를 불러오는 중 오류가 발생했습니다: ' + membersData.error);
+                    return;
+                }
+                
+                // 전체 회원 현황 화면으로 전환
+                document.getElementById('dashboardSection').classList.add('hidden');
+                document.getElementById('allMembersSection').classList.remove('hidden');
+                
+                // 요약 정보 업데이트
+                document.getElementById('membersSummary').textContent = 
+                    `총 회원: ${membersData.totalMembers}명, 총 운동 횟수: ${membersData.totalExercises}회`;
+                
+                // 테이블 업데이트
+                updateMembersTable(membersData.members);
+                
+            } catch (error) {
+                console.error('전체 회원 데이터 로딩 오류:', error);
+                alert('전체 회원 데이터를 불러오는 중 오류가 발생했습니다.');
             }
-            if (monthlyChartInstance) {
-                monthlyChartInstance.destroy();
-                monthlyChartInstance = null;
+        }
+
+        async function fetchAllMembersData() {
+            const url = `${GAS_WEB_APP_URL}?action=getAllMembers`;
+            console.log('전체 회원 요청 URL:', url);
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                mode: 'cors'
+            });
+            
+            console.log('전체 회원 응답 상태:', response.status, response.statusText);
+            
+            if (!response.ok) {
+                throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
             }
             
-            // 입력 필드 초기화
-            document.getElementById('emailInput').value = '';
+            const data = await response.json();
+            return data;
+        }
+
+        function updateMembersTable(members) {
+            const tbody = document.getElementById('membersTableBody');
+            tbody.innerHTML = '';
             
-            // 에러 메시지 제거
-            const errorMessage = document.querySelector('.error-message');
-            if (errorMessage) {
-                errorMessage.remove();
+            if (!members || members.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #666;">등록된 회원이 없습니다.</td></tr>';
+                return;
             }
+            
+            members.forEach((member, index) => {
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid #eee';
+                row.style.transition = 'background-color 0.2s';
+                
+                // 순위에 따른 배경색
+                let rankStyle = '';
+                if (index === 0) rankStyle = 'background: linear-gradient(45deg, #ffd700, #ffed4a); color: #333;'; // 금메달
+                else if (index === 1) rankStyle = 'background: linear-gradient(45deg, #c0c0c0, #e2e8f0); color: #333;'; // 은메달
+                else if (index === 2) rankStyle = 'background: linear-gradient(45deg, #cd7f32, #d69e2e); color: white;'; // 동메달
+                
+                // 운동 종류별 횟수 문자열 생성
+                const exerciseDetails = Object.entries(member.exercises)
+                    .map(([exercise, count]) => `${exercise}(${count})`)
+                    .join(', ');
+                
+                row.innerHTML = `
+                    <td style="padding: 15px; border: 1px solid #ddd; text-align: center; ${rankStyle}">
+                        ${index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                    </td>
+                    <td style="padding: 15px; border: 1px solid #ddd; font-weight: bold;">
+                        ${member.name}
+                    </td>
+                    <td style="padding: 15px; border: 1px solid #ddd;">
+                        <span style="background: linear-gradient(45deg, #667eea, #764ba2); color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.9em;">
+                            ${member.favoriteExercise}
+                        </span>
+                    </td>
+                    <td style="padding: 15px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #667eea; font-size: 1.2em;">
+                        ${member.totalCount}회
+                    </td>
+                    <td style="padding: 15px; border: 1px solid #ddd; font-size: 0.9em;">
+                        ${exerciseDetails}
+                    </td>
+                    <td style="padding: 15px; border: 1px solid #ddd; text-align: center; color: #666;">
+                        ${member.lastExerciseDate || '-'}
+                    </td>
+                `;
+                
+                // 호버 효과
+                row.addEventListener('mouseover', function() {
+                    if (index > 2) this.style.backgroundColor = '#f8f9ff';
+                });
+                row.addEventListener('mouseout', function() {
+                    if (index > 2) this.style.backgroundColor = '';
+                });
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function goBackToPersonal() {
+            document.getElementById('allMembersSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
         }
 
         // 페이지 로드 시 초기화
