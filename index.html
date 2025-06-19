@@ -481,11 +481,12 @@
                 monthlyChartInstance.destroy();
             }
             
-            // 현재 날짜 기준으로 최근 2개월 라벨 생성
+            // 데이터 길이에 맞춰 라벨 생성 (최근 2개월만)
             const today = new Date();
             const labels = [];
+            const dataLength = monthlyData ? monthlyData.length : 2;
             
-            for (let i = 1; i >= 0; i--) {
+            for (let i = dataLength - 1; i >= 0; i--) {
                 const targetDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
                 const monthLabel = targetDate.toLocaleDateString('ko-KR', { month: 'long' });
                 labels.push(monthLabel);
@@ -493,6 +494,7 @@
             
             console.log('월별 차트 라벨:', labels);
             console.log('월별 차트 데이터:', monthlyData);
+            console.log('데이터 길이:', dataLength);
             
             if (!monthlyData || monthlyData.length === 0) {
                 ctx.font = '16px Arial';
@@ -505,7 +507,7 @@
             monthlyChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: labels, // 데이터 길이에 맞춘 라벨
                     datasets: [{
                         label: '월별 운동 횟수',
                         data: monthlyData,
@@ -582,7 +584,7 @@
         // 페이지 로드 시 초기화
         document.addEventListener('DOMContentLoaded', function() {
             console.log('오.운.완 대시보드가 로드되었습니다.');
-            console.log('Apps Script URL:', https://ryoma328.github.io/EDL26_OOO/);
+            console.log('Apps Script URL:', GAS_WEB_APP_URL);
         });
     </script>
 </body>
