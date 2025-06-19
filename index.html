@@ -321,7 +321,7 @@
                     '걷기': 2,
                     '자전거': 1
                 },
-                monthlyData: [3, 5, 7, 8],
+                monthlyData: [1, 2],
                 recentActivities: [
                     { type: '러닝', date: '2024-06-19', description: '러닝 운동 완료' },
                     { type: '웨이트 트레이닝', date: '2024-06-18', description: '웨이트 트레이닝 운동 완료' },
@@ -477,10 +477,23 @@
                 window.monthlyChartInstance.destroy();
             }
             
+            // 현재 날짜 기준으로 최근 2개월 라벨 생성
+            const today = new Date();
+            const labels = [];
+            
+            for (let i = 1; i >= 0; i--) {
+                const targetDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
+                const monthLabel = targetDate.toLocaleDateString('ko-KR', { month: 'long' });
+                labels.push(monthLabel);
+            }
+            
+            console.log('월별 차트 라벨:', labels);
+            console.log('월별 차트 데이터:', monthlyData);
+            
             window.monthlyChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: ['3월', '4월', '5월', '6월'],
+                    labels: labels, // 동적으로 생성된 라벨 사용
                     datasets: [{
                         label: '월별 운동 횟수',
                         data: monthlyData,
@@ -507,6 +520,9 @@
                             beginAtZero: true,
                             grid: {
                                 color: 'rgba(0,0,0,0.1)'
+                            },
+                            ticks: {
+                                stepSize: 1 // 정수 단위로 표시
                             }
                         },
                         x: {
