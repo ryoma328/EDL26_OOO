@@ -83,6 +83,12 @@
             transform: translateY(-2px);
         }
 
+        .login-section button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -186,6 +192,16 @@
             display: inline-block;
         }
 
+        .error-message {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
         @media (max-width: 768px) {
             .charts-section {
                 grid-template-columns: 1fr;
@@ -235,25 +251,25 @@
                     <p id="userEmail"></p>
                 </div>
                 <div class="streak-badge" id="streakBadge">
-                    🔥 3일 연속 운동 중!
+                    🔥 1일 연속 운동 중!
                 </div>
             </div>
 
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-number" id="totalDays">15</div>
+                    <div class="stat-number" id="totalDays">1</div>
                     <div class="stat-label">총 운동일수</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" id="thisMonth">8</div>
+                    <div class="stat-number" id="thisMonth">1</div>
                     <div class="stat-label">이번 달 운동</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" id="favoriteExercise">러닝</div>
+                    <div class="stat-number" id="favoriteExercise">운동</div>
                     <div class="stat-label">가장 많이 한 운동</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" id="currentStreak">3</div>
+                    <div class="stat-number" id="currentStreak">1</div>
                     <div class="stat-label">연속 운동일</div>
                 </div>
             </div>
@@ -276,59 +292,19 @@
             <div class="recent-activities">
                 <div class="chart-title">최근 운동 기록</div>
                 <div id="recentActivitiesList">
-                    <div class="activity-item">
-                        <div>
-                            <span class="activity-type">러닝</span>
-                            <span style="margin-left: 15px;">오늘 아침 한강에서 5km 달리기</span>
-                        </div>
-                        <div style="color: #666;">2024-06-19</div>
-                    </div>
-                    <div class="activity-item">
-                        <div>
-                            <span class="activity-type">웨이트</span>
-                            <span style="margin-left: 15px;">헬스장에서 상체운동 집중</span>
-                        </div>
-                        <div style="color: #666;">2024-06-18</div>
-                    </div>
-                    <div class="activity-item">
-                        <div>
-                            <span class="activity-type">요가</span>
-                            <span style="margin-left: 15px;">홈요가 30분 완료</span>
-                        </div>
-                        <div style="color: #666;">2024-06-17</div>
-                    </div>
+                    <!-- 동적으로 생성됩니다 -->
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Google Apps Script 웹앱 URL (최종 배포된 URL)
+        // Google Apps Script 웹앱 URL (실제 배포된 URL로 변경하세요)
         const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbznELAWoFpoHQ0knouZGh7GDYrNtbVL1HBlV4WXUdSLto9sh_Sdkjj1jvC0MK7yIGh9Gg/exec';
         
-        // 샘플 데이터 (Google Apps Script 연동 전 테스트용)
-        const sampleData = {
-            'user@example.com': {
-                name: '김운동',
-                totalDays: 15,
-                thisMonth: 8,
-                favoriteExercise: '러닝',
-                currentStreak: 3,
-                exerciseTypes: {
-                    '러닝': 5,
-                    '웨이트 트레이닝': 4,
-                    '요가': 3,
-                    '걷기': 2,
-                    '자전거': 1
-                },
-                monthlyData: [3, 5, 7, 8],
-                recentActivities: [
-                    { type: '러닝', date: '2024-06-19', description: '러닝 운동 완료' },
-                    { type: '웨이트 트레이닝', date: '2024-06-18', description: '웨이트 트레이닝 운동 완료' },
-                    { type: '요가', date: '2024-06-17', description: '요가 운동 완료' }
-                ]
-            }
-        };
+        // 차트 인스턴스 저장용
+        let exerciseChartInstance = null;
+        let monthlyChartInstance = null;
 
         async function loadDashboard() {
             const email = document.getElementById('emailInput').value;
@@ -345,19 +321,10 @@
             button.disabled = true;
 
             try {
-                let userData;
-                
-                // Google Apps Script URL이 설정되어 있으면 실제 데이터 가져오기
-                if (GAS_WEB_APP_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
-                    userData = await fetchUserData(email);
-                } else {
-                    // 샘플 데이터 사용
-                    userData = sampleData[email] || sampleData['user@example.com'];
-                    console.log('샘플 데이터를 사용중입니다. 실제 연동을 위해서는 Google Apps Script URL을 설정해주세요.');
-                }
+                const userData = await fetchUserData(email);
 
                 if (userData.error) {
-                    alert(userData.error);
+                    showError(userData.error);
                     return;
                 }
                 
@@ -366,11 +333,7 @@
                 
             } catch (error) {
                 console.error('데이터 로딩 오류:', error);
-                alert('데이터를 불러오는 중 오류가 발생했습니다. 샘플 데이터로 표시합니다.');
-                
-                // 오류 시 샘플 데이터 사용
-                const userData = sampleData['user@example.com'];
-                updateDashboardUI(userData, email);
+                showError('데이터를 불러오는 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.');
             } finally {
                 // 로딩 완료
                 button.textContent = originalText;
@@ -382,25 +345,50 @@
             const response = await fetch(`${GAS_WEB_APP_URL}?email=${encodeURIComponent(email)}`);
             
             if (!response.ok) {
-                throw new Error('서버 응답 오류');
+                throw new Error(`서버 응답 오류: ${response.status}`);
             }
             
-            return await response.json();
+            const data = await response.json();
+            console.log('받은 데이터:', data);
+            return data;
+        }
+
+        function showError(message) {
+            const loginSection = document.getElementById('loginSection');
+            
+            // 기존 에러 메시지 제거
+            const existingError = loginSection.querySelector('.error-message');
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            // 새 에러 메시지 추가
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            loginSection.appendChild(errorDiv);
         }
 
         function updateDashboardUI(userData, email) {
-            // UI 표시
+            // UI 표시 전환
             document.getElementById('loginSection').classList.add('hidden');
             document.getElementById('dashboardSection').classList.remove('hidden');
             
-            // 데이터 업데이트
+            // 사용자 정보 업데이트
             document.getElementById('userName').textContent = userData.name + '님';
             document.getElementById('userEmail').textContent = email;
+            
+            // 통계 업데이트
             document.getElementById('totalDays').textContent = userData.totalDays;
             document.getElementById('thisMonth').textContent = userData.thisMonth;
             document.getElementById('favoriteExercise').textContent = userData.favoriteExercise;
             document.getElementById('currentStreak').textContent = userData.currentStreak;
-            document.getElementById('streakBadge').textContent = `🔥 ${userData.currentStreak}일 연속 운동 중!`;
+            
+            // 연속 운동일 배지 업데이트
+            const streakText = userData.currentStreak > 0 
+                ? `🔥 ${userData.currentStreak}일 연속 운동 중!`
+                : '💪 오늘부터 다시 시작해요!';
+            document.getElementById('streakBadge').textContent = streakText;
 
             // 최근 활동 목록 업데이트
             updateRecentActivities(userData.recentActivities);
@@ -413,6 +401,11 @@
         function updateRecentActivities(activities) {
             const container = document.getElementById('recentActivitiesList');
             container.innerHTML = '';
+            
+            if (!activities || activities.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">아직 운동 기록이 없습니다.</p>';
+                return;
+            }
             
             activities.forEach(activity => {
                 const activityDiv = document.createElement('div');
@@ -432,11 +425,19 @@
             const ctx = document.getElementById('exerciseChart').getContext('2d');
             
             // 기존 차트가 있다면 삭제
-            if (window.exerciseChartInstance) {
-                window.exerciseChartInstance.destroy();
+            if (exerciseChartInstance) {
+                exerciseChartInstance.destroy();
             }
             
-            window.exerciseChartInstance = new Chart(ctx, {
+            if (!exerciseData || Object.keys(exerciseData).length === 0) {
+                ctx.font = '16px Arial';
+                ctx.fillStyle = '#666';
+                ctx.textAlign = 'center';
+                ctx.fillText('운동 데이터가 없습니다', ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+            
+            exerciseChartInstance = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     labels: Object.keys(exerciseData),
@@ -449,7 +450,10 @@
                             '#f5576c',
                             '#4facfe',
                             '#43e97b',
-                            '#fa709a'
+                            '#fa709a',
+                            '#ff9a9e',
+                            '#a8edea',
+                            '#fed6e3'
                         ]
                     }]
                 },
@@ -473,8 +477,8 @@
             const ctx = document.getElementById('monthlyChart').getContext('2d');
             
             // 기존 차트가 있다면 삭제
-            if (window.monthlyChartInstance) {
-                window.monthlyChartInstance.destroy();
+            if (monthlyChartInstance) {
+                monthlyChartInstance.destroy();
             }
             
             // 현재 날짜 기준으로 최근 2개월 라벨 생성
@@ -490,10 +494,18 @@
             console.log('월별 차트 라벨:', labels);
             console.log('월별 차트 데이터:', monthlyData);
             
-            window.monthlyChartInstance = new Chart(ctx, {
+            if (!monthlyData || monthlyData.length === 0) {
+                ctx.font = '16px Arial';
+                ctx.fillStyle = '#666';
+                ctx.textAlign = 'center';
+                ctx.fillText('월별 데이터가 없습니다', ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+            
+            monthlyChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels, // 동적으로 생성된 라벨 사용
+                    labels: labels,
                     datasets: [{
                         label: '월별 운동 횟수',
                         data: monthlyData,
@@ -522,7 +534,7 @@
                                 color: 'rgba(0,0,0,0.1)'
                             },
                             ticks: {
-                                stepSize: 1 // 정수 단위로 표시
+                                stepSize: 1
                             }
                         },
                         x: {
@@ -540,6 +552,37 @@
             if (e.key === 'Enter') {
                 loadDashboard();
             }
+        });
+
+        // 뒤로가기 기능
+        function goBack() {
+            document.getElementById('dashboardSection').classList.add('hidden');
+            document.getElementById('loginSection').classList.remove('hidden');
+            
+            // 차트 정리
+            if (exerciseChartInstance) {
+                exerciseChartInstance.destroy();
+                exerciseChartInstance = null;
+            }
+            if (monthlyChartInstance) {
+                monthlyChartInstance.destroy();
+                monthlyChartInstance = null;
+            }
+            
+            // 입력 필드 초기화
+            document.getElementById('emailInput').value = '';
+            
+            // 에러 메시지 제거
+            const errorMessage = document.querySelector('.error-message');
+            if (errorMessage) {
+                errorMessage.remove();
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('오.운.완 대시보드가 로드되었습니다.');
+            console.log('Apps Script URL:', https://ryoma328.github.io/EDL26_OOO/);
         });
     </script>
 </body>
