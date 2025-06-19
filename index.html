@@ -1,388 +1,488 @@
-// Google Apps Script 코드 - 최종 버전
-const SPREADSHEET_ID = '1oaHRBv8N4tpeB2ezcKUszaETiC6cOeUm0bD6k8JSUVg';
-const SHEET_NAME = '운동인증기록'; // 실제 시트 탭 이름
-
-function doGet(e) {
-  const email = e.parameter.email;
-  
-  if (!email) {
-    return ContentService.createTextOutput(
-      JSON.stringify({error: '이메일 파라미터가 필요합니다'})
-    ).setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  try {
-    const userData = getUserExerciseData(email);
-    const output = ContentService.createTextOutput(JSON.stringify(userData))
-      .setMimeType(ContentService.MimeType.JSON);
-    
-    // CORS 헤더 설정
-    return output;
-  } catch (error) {
-    console.log('오류 발생:', error.toString());
-    return ContentService.createTextOutput(
-      JSON.stringify({error: '데이터 처리 중 오류가 발생했습니다: ' + error.toString()})
-    ).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function getUserExerciseData(userEmail) {
-  try {
-    // 스프레드시트 열기
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    console.log('스프레드시트 연결 성공');
-    
-    // 시트 찾기
-    let sheet;
-    const possibleNames = ['운동인증기록', '운동 인증 기록', '양식 응답 1', 'Form Responses 1'];
-    
-    for (let name of possibleNames) {
-      try {
-        sheet = spreadsheet.getSheetByName(name);
-        if (sheet) {
-          console.log('시트 찾음:', name);
-          break;
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오.운.완 개인 대시보드</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      } catch (e) {
-        continue;
-      }
-    }
-    
-    if (!sheet) {
-      // 첫 번째 시트 사용
-      sheet = spreadsheet.getSheets()[0];
-      console.log('첫 번째 시트 사용:', sheet.getName());
-    }
-    
-    const data = sheet.getDataRange().getValues();
-    console.log('데이터 행 수:', data.length);
-    
-    if (data.length < 2) {
-      return {
-        error: '시트에 데이터가 없습니다.',
-        email: userEmail
-      };
-    }
-    
-    // 헤더 행 (첫 번째 행)
-    const headers = data[0];
-    console.log('헤더:', headers);
-    
-    // 실제 컬럼 인덱스 (테스트 결과 확인된 구조)
-    const timestampCol = 0; // 타임스탬프
-    const emailCol = 1;     // 이메일
-    const nameCol = 2;      // 이름
-    const dateCol = 3;      // 운동 날짜
-    const exerciseCol = 4;  // 오늘 어떤 운동을 하셨나요?
-    const photoCol = 5;     // 인증사진
-    // 컬럼 6: 이메일 주소 (중복)
-    
-    console.log('실제 헤더명들:');
-    headers.forEach((header, index) => {
-      console.log(`컬럼 ${index}: ${header}`);
-    });
-    
-    // 사용자 데이터 필터링 (두 개의 이메일 컬럼 모두 확인)
-    const userRows = data.slice(1).filter(row => {
-      const email1 = row[emailCol]; // 컬럼 1: 이메일
-      const email2 = row[6];        // 컬럼 6: 이메일 주소
-      
-      const checkEmail = (email) => {
-        return email && email.toString().toLowerCase().trim() === userEmail.toLowerCase().trim();
-      };
-      
-      return checkEmail(email1) || checkEmail(email2);
-    });
-    
-    console.log('사용자 데이터 수:', userRows.length);
-    console.log('필터링에 사용된 이메일:', userEmail);
-    
-    if (userRows.length === 0) {
-      // 디버깅을 위해 시트에 있는 이메일들 확인
-      const availableEmails = data.slice(1).map(row => ({
-        email1: row[emailCol],
-        email2: row[6]
-      })).filter(emails => emails.email1 || emails.email2);
-      
-      console.log('시트에 있는 이메일들:', availableEmails);
-      
-      return {
-        error: '해당 이메일로 등록된 운동 기록이 없습니다.',
-        email: userEmail,
-        availableEmails: availableEmails.slice(0, 3), // 처음 3개만 반환
-        totalRecords: data.length - 1
-      };
-    }
-    
-    // 사용자 이름 (첫 번째 기록에서 가져오기)
-    const userName = userRows[0][nameCol] || '사용자';
-    
-    // 운동 통계 계산
-    const stats = calculateExerciseStats(userRows, dateCol, exerciseCol);
-    
-    return {
-      name: userName,
-      email: userEmail,
-      ...stats,
-      recentActivities: getRecentActivities(userRows, dateCol, exerciseCol, timestampCol)
-    };
-    
-  } catch (error) {
-    console.log('getUserExerciseData 오류:', error.toString());
-    throw error;
-  }
-}
 
-function calculateExerciseStats(userRows, dateCol, exerciseCol) {
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  
-  // 총 운동일수
-  const totalDays = userRows.length;
-  
-  // 이번 달 운동 횟수
-  let thisMonth = 0;
-  userRows.forEach(row => {
-    try {
-      const dateStr = row[dateCol];
-      if (dateStr) {
-        const exerciseDate = parseKoreanDate(dateStr);
-        if (exerciseDate && 
-            exerciseDate.getMonth() === currentMonth && 
-            exerciseDate.getFullYear() === currentYear) {
-          thisMonth++;
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
-      }
-    } catch (e) {
-      console.log('날짜 파싱 오류:', e);
-    }
-  });
-  
-  // 운동 종류별 통계
-  const exerciseTypes = {};
-  userRows.forEach(row => {
-    const exercise = row[exerciseCol];
-    if (exercise) {
-      exerciseTypes[exercise] = (exerciseTypes[exercise] || 0) + 1;
-    }
-  });
-  
-  // 가장 많이 한 운동
-  const favoriteExercise = Object.keys(exerciseTypes).length > 0 
-    ? Object.keys(exerciseTypes).reduce((a, b) => 
-        exerciseTypes[a] > exerciseTypes[b] ? a : b
-      )
-    : '운동';
-  
-  // 연속 운동일 계산
-  const currentStreak = calculateCurrentStreak(userRows, dateCol);
-  
-  // 월별 데이터 (최근 4개월)
-  const monthlyData = calculateMonthlyData(userRows, dateCol);
-  
-  return {
-    totalDays,
-    thisMonth,
-    favoriteExercise,
-    currentStreak,
-    exerciseTypes,
-    monthlyData
-  };
-}
 
-function parseKoreanDate(dateStr) {
-  try {
-    if (!dateStr) return null;
-    
-    // "2025. 6. 18" 또는 "2025.6.18" 형식 처리
-    const cleanStr = dateStr.toString().replace(/\s+/g, ' ').trim();
-    
-    // 점으로 구분된 형식 처리
-    let dateParts = cleanStr.split(/[.\s]+/).filter(part => part.length > 0);
-    
-    if (dateParts.length >= 3) {
-      const year = parseInt(dateParts[0]);
-      const month = parseInt(dateParts[1]) - 1; // JavaScript에서 월은 0부터 시작
-      const day = parseInt(dateParts[2]);
-      
-      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-        return new Date(year, month, day);
-      }
-    }
-    
-    // 기본 Date 파싱 시도
-    const standardDate = new Date(dateStr);
-    if (!isNaN(standardDate.getTime())) {
-      return standardDate;
-    }
-    
-    return null;
-  } catch (e) {
-    console.log('날짜 파싱 실패:', dateStr, e);
-    return null;
-  }
-}
-
-function calculateCurrentStreak(userRows, dateCol) {
-  try {
-    // 유효한 날짜가 있는 행들만 필터링하고 날짜로 변환
-    const datesWithData = [];
-    
-    userRows.forEach(row => {
-      const exerciseDate = parseKoreanDate(row[dateCol]);
-      if (exerciseDate) {
-        exerciseDate.setHours(0, 0, 0, 0);
-        datesWithData.push(exerciseDate.getTime());
-      }
-    });
-    
-    if (datesWithData.length === 0) return 1;
-    
-    // 중복 제거 후 내림차순 정렬
-    const uniqueDates = [...new Set(datesWithData)].sort((a, b) => b - a);
-    
-    let streak = 0;
-    let currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0);
-    
-    for (let i = 0; i < uniqueDates.length; i++) {
-      const exerciseDate = new Date(uniqueDates[i]);
-      const daysDiff = Math.floor((currentDate - exerciseDate) / (1000 * 60 * 60 * 24));
-      
-      if (daysDiff === streak) {
-        streak++;
-        currentDate = new Date(exerciseDate);
-        currentDate.setDate(currentDate.getDate() - 1);
-      } else if (daysDiff === streak + 1 && streak === 0) {
-        // 어제 운동한 경우도 연속으로 카운트
-        streak++;
-        currentDate = new Date(exerciseDate);
-        currentDate.setDate(currentDate.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-    
-    return Math.max(streak, 1);
-  } catch (error) {
-    console.log('연속일 계산 오류:', error);
-    return 1;
-  }
-}
-
-function calculateMonthlyData(userRows, dateCol) {
-  try {
-    const monthlyCount = {};
-    const today = new Date();
-    
-    // 최근 4개월 초기화
-    for (let i = 3; i >= 0; i--) {
-      const targetDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      const monthKey = `${targetDate.getFullYear()}-${targetDate.getMonth()}`;
-      monthlyCount[monthKey] = 0;
-    }
-    
-    // 운동 기록들을 월별로 카운트
-    userRows.forEach(row => {
-      const exerciseDate = parseKoreanDate(row[dateCol]);
-      if (exerciseDate) {
-        const monthKey = `${exerciseDate.getFullYear()}-${exerciseDate.getMonth()}`;
-        if (monthlyCount.hasOwnProperty(monthKey)) {
-          monthlyCount[monthKey]++;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
         }
-      }
-    });
-    
-    return Object.values(monthlyCount);
-  } catch (error) {
-    console.log('월별 데이터 계산 오류:', error);
-    return [0, 0, 0, userRows.length];
-  }
-}
 
-function getRecentActivities(userRows, dateCol, exerciseCol, timestampCol) {
-  try {
-    // 타임스탬프 기준으로 정렬
-    const sortedRows = userRows.sort((a, b) => {
-      try {
-        const dateA = new Date(a[timestampCol]);
-        const dateB = new Date(b[timestampCol]);
-        return dateB - dateA; // 최신순
-      } catch (e) {
-        return 0;
-      }
-    });
-    
-    return sortedRows.slice(0, 5).map(row => {
-      const exerciseType = row[exerciseCol] || '운동';
-      const dateStr = row[dateCol] || '';
-      
-      // 날짜 형식 변환
-      let formattedDate = '';
-      const exerciseDate = parseKoreanDate(dateStr);
-      if (exerciseDate) {
-        const year = exerciseDate.getFullYear();
-        const month = String(exerciseDate.getMonth() + 1).padStart(2, '0');
-        const day = String(exerciseDate.getDate()).padStart(2, '0');
-        formattedDate = `${year}-${month}-${day}`;
-      } else {
-        formattedDate = new Date().toISOString().split('T')[0];
-      }
-      
-      return {
-        type: exerciseType,
-        date: formattedDate,
-        description: `${exerciseType} 운동 완료`
-      };
-    });
-  } catch (error) {
-    console.log('최근 활동 계산 오류:', error);
-    return [];
-  }
-}
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
 
-// 테스트 함수
-function testScript() {
-  const testEmail = 'ryoma328@gmail.com'; // 실제 등록된 이메일
-  try {
-    const result = getUserExerciseData(testEmail);
-    console.log('테스트 결과:', JSON.stringify(result, null, 2));
-  } catch (error) {
-    console.log('테스트 오류:', error.toString());
-  }
-}
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
 
-// 디버깅용 함수 - 시트 구조 확인
-function debugSheetStructure() {
-  try {
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheets = spreadsheet.getSheets();
-    
-    console.log('전체 시트 수:', sheets.length);
-    sheets.forEach((sheet, index) => {
-      console.log(`시트 ${index + 1}: "${sheet.getName()}"`);
-    });
-    
-    // 첫 번째 시트의 데이터 구조 확인
-    const sheet = sheets[0];
-    const data = sheet.getDataRange().getValues();
-    
-    console.log('시트 이름:', sheet.getName());
-    console.log('데이터 행 수:', data.length);
-    console.log('헤더 (첫 번째 행):', data[0]);
-    
-    if (data.length > 1) {
-      console.log('첫 번째 데이터 행:', data[1]);
-      console.log('두 번째 데이터 행:', data[2]);
-      
-      // 운동 날짜 파싱 테스트
-      if (data[1] && data[1][3]) {
-        console.log('날짜 파싱 테스트:', data[1][3], '->', parseKoreanDate(data[1][3]));
-      }
-    }
-    
-  } catch (error) {
-    console.log('디버깅 오류:', error.toString());
-  }
-}
+        .user-info {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .login-section {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-section input {
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            margin: 10px;
+            width: 250px;
+        }
+
+        .login-section button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .login-section button:hover {
+            transform: translateY(-2px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .recent-activities {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .activity-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+        }
+
+        .activity-item:hover {
+            background-color: #f8f9ff;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-type {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .streak-badge {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 25px;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        @media (max-width: 768px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .user-info {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .login-section input {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏃‍♂️ 오.운.완 개인 대시보드</h1>
+            <p>오늘도 운동 완료! 당신의 운동 여정을 확인해보세요</p>
+        </div>
+
+        <div id="loginSection" class="login-section">
+            <h2>로그인</h2>
+            <p>이메일을 입력하여 개인 대시보드를 확인하세요</p>
+            <br>
+            <input type="email" id="emailInput" placeholder="등록한 이메일을 입력하세요">
+            <br><br>
+            <button onclick="loadDashboard()">대시보드 보기</button>
+            <br><br>
+            <p style="color: #666; font-size: 0.9em;">
+                * 실제 구글 시트 데이터와 연동되었습니다!<br>
+                등록된 이메일로 로그인하여 개인별 운동 현황을 확인하세요
+            </p>
+        </div>
+
+        <div id="dashboardSection" class="hidden">
+            <div class="user-info">
+                <div>
+                    <h2 id="userName">사용자님</h2>
+                    <p id="userEmail"></p>
+                </div>
+                <div class="streak-badge" id="streakBadge">
+                    🔥 3일 연속 운동 중!
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalDays">15</div>
+                    <div class="stat-label">총 운동일수</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="thisMonth">8</div>
+                    <div class="stat-label">이번 달 운동</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="favoriteExercise">러닝</div>
+                    <div class="stat-label">가장 많이 한 운동</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="currentStreak">3</div>
+                    <div class="stat-label">연속 운동일</div>
+                </div>
+            </div>
+
+            <div class="charts-section">
+                <div class="chart-container">
+                    <div class="chart-title">운동 종류별 통계</div>
+                    <canvas id="exerciseChart" width="400" height="200"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">월별 운동 현황</div>
+                    <canvas id="monthlyChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+
+            <div class="recent-activities">
+                <div class="chart-title">최근 운동 기록</div>
+                <div id="recentActivitiesList">
+                    <div class="activity-item">
+                        <div>
+                            <span class="activity-type">러닝</span>
+                            <span style="margin-left: 15px;">오늘 아침 한강에서 5km 달리기</span>
+                        </div>
+                        <div style="color: #666;">2024-06-19</div>
+                    </div>
+                    <div class="activity-item">
+                        <div>
+                            <span class="activity-type">웨이트</span>
+                            <span style="margin-left: 15px;">헬스장에서 상체운동 집중</span>
+                        </div>
+                        <div style="color: #666;">2024-06-18</div>
+                    </div>
+                    <div class="activity-item">
+                        <div>
+                            <span class="activity-type">요가</span>
+                            <span style="margin-left: 15px;">홈요가 30분 완료</span>
+                        </div>
+                        <div style="color: #666;">2024-06-17</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Google Apps Script 웹앱 URL (최종 배포된 URL)
+        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbznELAWoFpoHQ0knouZGh7GDYrNtbVL1HBlV4WXUdSLto9sh_Sdkjj1jvC0MK7yIGh9Gg/exec';
+        
+        // 샘플 데이터 (Google Apps Script 연동 전 테스트용)
+        const sampleData = {
+            'user@example.com': {
+                name: '김운동',
+                totalDays: 15,
+                thisMonth: 8,
+                favoriteExercise: '러닝',
+                currentStreak: 3,
+                exerciseTypes: {
+                    '러닝': 5,
+                    '웨이트 트레이닝': 4,
+                    '요가': 3,
+                    '걷기': 2,
+                    '자전거': 1
+                },
+                monthlyData: [3, 5, 7, 8],
+                recentActivities: [
+                    { type: '러닝', date: '2024-06-19', description: '러닝 운동 완료' },
+                    { type: '웨이트 트레이닝', date: '2024-06-18', description: '웨이트 트레이닝 운동 완료' },
+                    { type: '요가', date: '2024-06-17', description: '요가 운동 완료' }
+                ]
+            }
+        };
+
+        async function loadDashboard() {
+            const email = document.getElementById('emailInput').value;
+            
+            if (!email) {
+                alert('이메일을 입력해주세요.');
+                return;
+            }
+
+            // 로딩 표시
+            const button = document.querySelector('button');
+            const originalText = button.textContent;
+            button.textContent = '로딩 중...';
+            button.disabled = true;
+
+            try {
+                let userData;
+                
+                // Google Apps Script URL이 설정되어 있으면 실제 데이터 가져오기
+                if (GAS_WEB_APP_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
+                    userData = await fetchUserData(email);
+                } else {
+                    // 샘플 데이터 사용
+                    userData = sampleData[email] || sampleData['user@example.com'];
+                    console.log('샘플 데이터를 사용중입니다. 실제 연동을 위해서는 Google Apps Script URL을 설정해주세요.');
+                }
+
+                if (userData.error) {
+                    alert(userData.error);
+                    return;
+                }
+                
+                // UI 업데이트
+                updateDashboardUI(userData, email);
+                
+            } catch (error) {
+                console.error('데이터 로딩 오류:', error);
+                alert('데이터를 불러오는 중 오류가 발생했습니다. 샘플 데이터로 표시합니다.');
+                
+                // 오류 시 샘플 데이터 사용
+                const userData = sampleData['user@example.com'];
+                updateDashboardUI(userData, email);
+            } finally {
+                // 로딩 완료
+                button.textContent = originalText;
+                button.disabled = false;
+            }
+        }
+
+        async function fetchUserData(email) {
+            const response = await fetch(`${GAS_WEB_APP_URL}?email=${encodeURIComponent(email)}`);
+            
+            if (!response.ok) {
+                throw new Error('서버 응답 오류');
+            }
+            
+            return await response.json();
+        }
+
+        function updateDashboardUI(userData, email) {
+            // UI 표시
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            
+            // 데이터 업데이트
+            document.getElementById('userName').textContent = userData.name + '님';
+            document.getElementById('userEmail').textContent = email;
+            document.getElementById('totalDays').textContent = userData.totalDays;
+            document.getElementById('thisMonth').textContent = userData.thisMonth;
+            document.getElementById('favoriteExercise').textContent = userData.favoriteExercise;
+            document.getElementById('currentStreak').textContent = userData.currentStreak;
+            document.getElementById('streakBadge').textContent = `🔥 ${userData.currentStreak}일 연속 운동 중!`;
+
+            // 최근 활동 목록 업데이트
+            updateRecentActivities(userData.recentActivities);
+
+            // 차트 생성
+            createExerciseChart(userData.exerciseTypes);
+            createMonthlyChart(userData.monthlyData);
+        }
+
+        function updateRecentActivities(activities) {
+            const container = document.getElementById('recentActivitiesList');
+            container.innerHTML = '';
+            
+            activities.forEach(activity => {
+                const activityDiv = document.createElement('div');
+                activityDiv.className = 'activity-item';
+                activityDiv.innerHTML = `
+                    <div>
+                        <span class="activity-type">${activity.type}</span>
+                        <span style="margin-left: 15px;">${activity.description}</span>
+                    </div>
+                    <div style="color: #666;">${activity.date}</div>
+                `;
+                container.appendChild(activityDiv);
+            });
+        }
+
+        function createExerciseChart(exerciseData) {
+            const ctx = document.getElementById('exerciseChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(exerciseData),
+                    datasets: [{
+                        data: Object.values(exerciseData),
+                        backgroundColor: [
+                            '#667eea',
+                            '#764ba2',
+                            '#f093fb',
+                            '#f5576c',
+                            '#4facfe'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function createMonthlyChart(monthlyData) {
+            const ctx = document.getElementById('monthlyChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['3월', '4월', '5월', '6월'],
+                    datasets: [{
+                        label: '월별 운동 횟수',
+                        data: monthlyData,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // 엔터키로 로그인 가능
+        document.getElementById('emailInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadDashboard();
+            }
+        });
+    </script>
+</body>
+</html>
